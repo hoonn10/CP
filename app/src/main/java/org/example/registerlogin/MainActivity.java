@@ -64,6 +64,9 @@ public class MainActivity extends AppCompatActivity{
     // 버킷 사용
     private Uri BfilePath;
 
+    //wav 변환
+    ExtAudioRecorder recorder;
+
     //녹음기능 media record
     public   MediaRecorder mRecorder = null;
     public int recordCount = 0;
@@ -132,8 +135,6 @@ public class MainActivity extends AppCompatActivity{
         permissionCheck();
         start();
 
-
-        bt = new BluetoothSPP(this);
         connectFTP = new ConnectFTP();
         connectSocket = new ConnectSocket();
 
@@ -235,17 +236,15 @@ public class MainActivity extends AppCompatActivity{
                                 //파일을 저장한 폴더로 이동
                                 try {
                                     Path filePath = Paths.get(Environment.getExternalStorageDirectory()
-                                            .getAbsolutePath() + "/myrecording_"+ recordCount +".mp4");
+                                            .getAbsolutePath() + "/myrecording_"+ recordCount +".wav");
                                     Path filePathToMove = Paths.get(Environment.getExternalStorageDirectory()
-                                            .getAbsolutePath() + "/SoundSense/myrecording_"+ recordCount +".mp4");
+                                            .getAbsolutePath() + "/SoundSense/myrecording_"+ recordCount +".wav");
                                     Files.move(filePath, filePathToMove);
                                 }
                                 catch (IOException e) {
                                     Log.d("MOVE record","옮길 오디오가 없음");
                                 }
-
                                 recordCount++;
-
                             }
 
 
@@ -283,7 +282,6 @@ public class MainActivity extends AppCompatActivity{
         threadStop = true;
         ftpThread.interrupt();
         finish();
-        bt.stopService(); //블루투스 중지
         super.onDestroy();
     }
 
@@ -303,24 +301,34 @@ public class MainActivity extends AppCompatActivity{
 
     private void recordAudio() {
         mRecorder = new MediaRecorder();
-        try{
-            mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC); // 어디에서 음성 데이터를 받을 것인지
-            mRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4); // 압축 형식 설정
-            mRecorder.setAudioSamplingRate(44100);
-            mRecorder.setAudioEncodingBitRate(96000);
-            mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
+        recorder = ExtAudioRecorder.getInstanse(false); //Uncompressed recording
+//        try{
+//            mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC); // 어디에서 음성 데이터를 받을 것인지
+//            mRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4); // 압축 형식 설정
+//            mRecorder.setAudioSamplingRate(44100);
+//            mRecorder.setAudioEncodingBitRate(96000);
+//            mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
+//            //mediaRecorder.setMaxDuration(10000);
+//            mRecorder.setOutputFile(Environment.getExternalStorageDirectory()
+//                    .getAbsolutePath() + "/myrecording_"+ recordCount+".wav");
+//        } catch (Exception e){
+//            mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC); // 어디에서 음성 데이터를 받을 것인지
+//            mRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP); // 압축 형식 설정
+//            mRecorder.setAudioSamplingRate(44100);
+//            mRecorder.setAudioEncodingBitRate(96000);
+//            mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
+//            //mediaRecorder.setMaxDuration(10000);
+//            mRecorder.setOutputFile(Environment.getExternalStorageDirectory()
+//                    .getAbsolutePath() + "/myrecording_"+ recordCount+".wav");
+//        }
+        try {
             //mediaRecorder.setMaxDuration(10000);
-            mRecorder.setOutputFile(Environment.getExternalStorageDirectory()
-                    .getAbsolutePath() + "/myrecording_"+ recordCount+".mp4");
-        } catch (Exception e){
-            mRecorder.setAudioSource(MediaRecorder.AudioSource.MIC); // 어디에서 음성 데이터를 받을 것인지
-            mRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP); // 압축 형식 설정
-            mRecorder.setAudioSamplingRate(44100);
-            mRecorder.setAudioEncodingBitRate(96000);
-            mRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-            //mediaRecorder.setMaxDuration(10000);
-            mRecorder.setOutputFile(Environment.getExternalStorageDirectory()
-                    .getAbsolutePath() + "/myrecording_"+ recordCount+".mp4");
+            recorder.setOutputFile(Environment.getExternalStorageDirectory()
+                    .getAbsolutePath() + "/myrecording_"+ recordCount+".wav");
+            recorder.prepare();
+            recorder.start();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
 
        new Thread(new Runnable() {
@@ -330,30 +338,32 @@ public class MainActivity extends AppCompatActivity{
                 new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                     @Override
                     public void run() {
-                        mRecorder.stop();
-                        mRecorder.reset();
-                        mRecorder = null;
+                        recorder.stop();
+                        recorder.reset();
+                        recorder = null;
                         //Looper.loop();
                     }
                 },20000);
             }
         }).start();
 
-        try {
-            //mediaRecorder.setMaxDuration(10000);
-            mRecorder.prepare();
-            mRecorder.start();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+//        try {
+//            //mediaRecorder.setMaxDuration(10000);
+//            recorder.setOutputFile(Environment.getExternalStorageDirectory()
+//                    .getAbsolutePath() + "/myrecording_"+ recordCount+".wav");
+//            recorder.prepare();
+//            recorder.start();
+//        } catch (Exception e) {
+//            e.printStackTrace();
+//        }
     }
     public void stopRecording(){
-        if(mRecorder != null){
+        if(recorder != null){
             try{
-                mRecorder.stop();
-                mRecorder.reset();
-                mRecorder.release();
-                mRecorder = null;
+                recorder.stop();
+                recorder.reset();
+                recorder.release();
+                recorder = null;
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -375,42 +385,42 @@ public class MainActivity extends AppCompatActivity{
 
 
     //upload the file
-    private void uploadFile(String filemp4) {
-
-        //storage
-        FirebaseStorage storage = FirebaseStorage.getInstance();
-
-        //업로드하려는 파일 지정
-        String filename = filemp4;
-        BfilePath = Uri.fromFile(new File(path+filemp4));
-
-        //storage 주소와 폴더 파일명을 지정해 준다.
-        StorageReference storageRef = storage.getReferenceFromUrl("gs://e1i3-83897.appspot.com").child("/" + filename);
-        //올라가거라...
-        storageRef.putFile(BfilePath)
-                //성공시
-                .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
-                    @Override
-                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
-                        Toast.makeText(getApplicationContext(), "업로드 완료!", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                //실패시
-                .addOnFailureListener(new OnFailureListener() {
-                    @Override
-                    public void onFailure(@NonNull Exception e) {
-                        Toast.makeText(getApplicationContext(), "업로드 실패!", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                //진행중
-                .addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
-                    @Override
-                    public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
-                        @SuppressWarnings("VisibleForTests") //이걸 넣어 줘야 아랫줄에 에러가 사라진다. 넌 누구냐?
-                                double progress = (100 * taskSnapshot.getBytesTransferred()) /  taskSnapshot.getTotalByteCount();
-                    }
-                });
-    }
+//    private void uploadFile(String filemp4) {
+//
+//        //storage
+//        FirebaseStorage storage = FirebaseStorage.getInstance();
+//
+//        //업로드하려는 파일 지정
+//        String filename = filemp4;
+//        BfilePath = Uri.fromFile(new File(path+filemp4));
+//
+//        //storage 주소와 폴더 파일명을 지정해 준다.
+//        StorageReference storageRef = storage.getReferenceFromUrl("gs://e1i3-83897.appspot.com").child("/" + filename);
+//        //올라가거라...
+//        storageRef.putFile(BfilePath)
+//                //성공시
+//                .addOnSuccessListener(new OnSuccessListener<UploadTask.TaskSnapshot>() {
+//                    @Override
+//                    public void onSuccess(UploadTask.TaskSnapshot taskSnapshot) {
+//                        Toast.makeText(getApplicationContext(), "업로드 완료!", Toast.LENGTH_SHORT).show();
+//                    }
+//                })
+//                //실패시
+//                .addOnFailureListener(new OnFailureListener() {
+//                    @Override
+//                    public void onFailure(@NonNull Exception e) {
+//                        Toast.makeText(getApplicationContext(), "업로드 실패!", Toast.LENGTH_SHORT).show();
+//                    }
+//                })
+//                //진행중
+//                .addOnProgressListener(new OnProgressListener<UploadTask.TaskSnapshot>() {
+//                    @Override
+//                    public void onProgress(UploadTask.TaskSnapshot taskSnapshot) {
+//                        @SuppressWarnings("VisibleForTests") //이걸 넣어 줘야 아랫줄에 에러가 사라진다. 넌 누구냐?
+//                                double progress = (100 * taskSnapshot.getBytesTransferred()) /  taskSnapshot.getTotalByteCount();
+//                    }
+//                });
+//    }
 
 }
 
